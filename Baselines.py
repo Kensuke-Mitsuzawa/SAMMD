@@ -10,9 +10,16 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch
 from utils_HD import MatConvert, Pdist2, MMDu, TST_MMD_adaptive_bandwidth, TST_MMD_u, TST_ME, TST_SCF, TST_C2ST_D, TST_LCE_D
+from pathlib import Path
+
+
+path_work_root = Path(
+    '/content/drive/MyDrive/developments/colab_storage/phd/exps/SAMMD')
+
 
 # Setup seeds
-os.makedirs("images", exist_ok=True)
+path_work_root.joinpath('images').mkdir(exist_ok=True, parents=True)
+
 np.random.seed(819)
 torch.manual_seed(819)
 torch.cuda.manual_seed(819)
@@ -21,23 +28,29 @@ is_cuda = True
 
 # parameters setting
 parser = argparse.ArgumentParser()
-parser.add_argument("--n_epochs", type=int, default=1000, help="number of epochs of training")
-parser.add_argument("--batch_size", type=int, default=100, help="size of the batches")
-parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate for C2STs")
-parser.add_argument("--img_size", type=int, default=64, help="size of each image dimension")
-parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-parser.add_argument("--n", type=int, default=500, help="number of samples in one set")
+parser.add_argument("--n_epochs", type=int, default=1000,
+                    help="number of epochs of training")
+parser.add_argument("--batch_size", type=int, default=100,
+                    help="size of the batches")
+parser.add_argument("--lr", type=float, default=0.0002,
+                    help="adam: learning rate for C2STs")
+parser.add_argument("--img_size", type=int, default=64,
+                    help="size of each image dimension")
+parser.add_argument("--channels", type=int, default=3,
+                    help="number of image channels")
+parser.add_argument("--n", type=int, default=500,
+                    help="number of samples in one set")
 opt = parser.parse_args()
 print(opt)
 dtype = torch.float
 device = torch.device("cuda:0")
 cuda = True if torch.cuda.is_available() else False
-N_per = 100 # permutation times
-alpha = 0.05 # test threshold
-N1 = opt.n # number of samples in one set
-K = 20 # number of trails
-N = 100 # number of test sets
-N_f = 100.0 # number of test sets (float)
+N_per = 100  # permutation times
+alpha = 0.05  # test threshold
+N1 = opt.n  # number of samples in one set
+K = 20  # number of trails
+N = 100  # number of test sets
+N_f = 100.0  # number of test sets (float)
 sigmaG = 1000
 # Loss function
 adversarial_loss = torch.nn.CrossEntropyLoss()
@@ -46,15 +59,18 @@ adversarial_loss = torch.nn.CrossEntropyLoss()
 ep_OPT = np.zeros([K])
 s_OPT = np.zeros([K])
 s0_OPT = np.zeros([K])
-Results = np.zeros([7,K])
+Results = np.zeros([7, K])
 
 # Define the deep network for C2ST-S and C2ST-L
+
+
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
 
         def discriminator_block(in_filters, out_filters, bn=True):
-            block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0)]
+            block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), nn.LeakyReLU(
+                0.2, inplace=True), nn.Dropout2d(0)]
             if bn:
                 block.append(nn.BatchNorm2d(out_filters, 0.8))
             return block
@@ -82,12 +98,15 @@ class Discriminator(nn.Module):
         return validity
 
 # Define the deep network for MMD-D
+
+
 class Featurizer(nn.Module):
     def __init__(self):
         super(Featurizer, self).__init__()
 
         def discriminator_block(in_filters, out_filters, bn=True):
-            block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0)] #0.25
+            block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), nn.LeakyReLU(
+                0.2, inplace=True), nn.Dropout2d(0)]  # 0.25
             if bn:
                 block.append(nn.BatchNorm2d(out_filters, 0.8))
             return block
@@ -111,32 +130,41 @@ class Featurizer(nn.Module):
 
         return feature
 
-transform_test = transforms.Compose([transforms.ToTensor(),])
-testset = datasets.CIFAR10(root='./data/cifar10', train=False, download=True, transform=transform_test)
 
-test_loader = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=False, num_workers=0)
+transform_test = transforms.Compose([transforms.ToTensor(), ])
+path_data_cifar10 = path_work_root.joinpath('data/cifar10')
+testset = datasets.CIFAR10(
+    root=path_data_cifar10, train=False, download=True, transform=transform_test)
+
+test_loader = torch.utils.data.DataLoader(
+    testset, batch_size=10000, shuffle=False, num_workers=0)
 
 # Obtain CIFAR10 images
 for i, (imgs, Labels) in enumerate(test_loader):
     Cifar_data_all = imgs
     label_all = Labels
 
-ind_Cifar = np.random.choice(len(Cifar_data_all), len(Cifar_data_all), replace=False)
+ind_Cifar = np.random.choice(
+    len(Cifar_data_all), len(Cifar_data_all), replace=False)
 Cifar_data_all = Cifar_data_all[ind_Cifar]
 
-data_all=Cifar_data_all[2000:]
+data_all = Cifar_data_all[2000:]
 
 
 Ind_all = np.arange(len(data_all))
 
-#download adversarial data
-data_trans = np.load('./adv/Adv_data/cifar10/Adv_cifar_PGD20_eps8.npy')
+# download adversarial data
+path_adv_data = path_work_root.joinpath(
+    'adv/Adv_data/cifar10/Adv_cifar_PGD20_eps8.npy')
+path_adv_data.parent.mkdir(parents=True, exist_ok=True)
+
+data_trans = np.load(path_adv_data)
 ind_Cifar = np.random.choice(len(data_trans), len(data_trans), replace=False)
 data_trans = data_trans[ind_Cifar]
 
 data_trans = data_trans[0:1000]
 
-data_trans=torch.from_numpy(data_trans).float()                            
+data_trans = torch.from_numpy(data_trans).float()
 
 Ind_data = np.random.choice(len(data_trans), len(data_trans), replace=False)
 
@@ -156,7 +184,8 @@ for kk in range(K):
     featurizer = Featurizer()
     discriminator = Discriminator()
     # Initialize parameters
-    epsilonOPT = torch.log(MatConvert(np.random.rand(1) * 10 ** (-10), device, dtype)) 
+    epsilonOPT = torch.log(MatConvert(
+        np.random.rand(1) * 10 ** (-10), device, dtype))
     epsilonOPT.requires_grad = True
     sigmaOPT = MatConvert(np.ones(1) * np.sqrt(2 * 32 * 32), device, dtype)
     sigmaOPT.requires_grad = True
@@ -173,7 +202,7 @@ for kk in range(K):
     Ind_te = np.delete(Ind_all, Ind_tr)
     train_data = []
     for i in Ind_tr:
-       train_data.append([data_all[i], label_all[i]])
+        train_data.append([data_all[i], label_all[i]])
 
     dataloader = torch.utils.data.DataLoader(
         train_data,
@@ -189,9 +218,9 @@ for kk in range(K):
     New_CIFAR_te = data_trans[Ind_te_v4]
 
     # Initialize optimizers
-    optimizer_F = torch.optim.Adam(list(featurizer.parameters()) + [epsilonOPT] + [sigmaOPT] + [sigma0OPT], lr=0.0002)
+    optimizer_F = torch.optim.Adam(list(featurizer.parameters(
+    )) + [epsilonOPT] + [sigmaOPT] + [sigma0OPT], lr=0.0002)
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr)
-
 
     Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
@@ -207,8 +236,10 @@ for kk in range(K):
                 ind = np.random.choice(N1, imgs.shape[0], replace=False)
                 Fake_imgs = New_CIFAR_tr[ind]
                 # Adversarial ground truths
-                valid = Variable(Tensor(imgs.shape[0], 1).fill_(1.0), requires_grad=False)
-                fake = Variable(Tensor(imgs.shape[0], 1).fill_(0.0), requires_grad=False)
+                valid = Variable(Tensor(imgs.shape[0], 1).fill_(
+                    1.0), requires_grad=False)
+                fake = Variable(Tensor(imgs.shape[0], 1).fill_(
+                    0.0), requires_grad=False)
 
                 # Configure input
                 real_imgs = Variable(imgs.type(Tensor))
@@ -224,13 +255,14 @@ for kk in range(K):
                 # Compute output of deep network
 
                 modelu_output = featurizer(X)
-                #print(modelu_output[0][0])
+                # print(modelu_output[0][0])
                 # Compute epsilon, sigma and sigma_0
                 ep = torch.exp(epsilonOPT) / (1 + torch.exp(epsilonOPT))
                 sigma = sigmaOPT ** 2
                 sigma0_u = sigma0OPT ** 2
                 # Compute Compute J (STAT_u)
-                TEMP = MMDu(modelu_output, imgs.shape[0], X.view(X.shape[0],-1), sigma, sigma0_u, ep)
+                TEMP = MMDu(modelu_output, imgs.shape[0], X.view(
+                    X.shape[0], -1), sigma, sigma0_u, ep)
                 mmd_value_temp = -1 * (TEMP[0])
                 mmd_std_temp = torch.sqrt(TEMP[1] + 10 ** (-8))
                 STAT_u = torch.div(mmd_value_temp, mmd_std_temp)
@@ -259,7 +291,6 @@ for kk in range(K):
             else:
                 break
 
-
     # Run two-sample test on the training set
     # Fetch training data
     s1 = data_all[Ind_tr]
@@ -267,10 +298,13 @@ for kk in range(K):
     S = torch.cat([s1.cpu(), s2.cpu()], 0).cuda()
     Sv = S.view(2 * N1, -1)
     # Run two-sample test (MMD-D) on the training set
-    h_u, threshold_u, mmd_value_u = TST_MMD_u(featurizer(S), N_per, N1, Sv, sigma, sigma0_u, ep, alpha, device, dtype)
+    h_u, threshold_u, mmd_value_u = TST_MMD_u(featurizer(
+        S), N_per, N1, Sv, sigma, sigma0_u, ep, alpha, device, dtype)
     # Run two-sample test (C2STs) on the training set
-    h_C2ST_S, threshold_C2ST_S, s_C2ST_S = TST_C2ST_D(S, N1, N_per, alpha, discriminator, device, dtype)
-    h_C2ST_L, threshold_C2ST_L, s_C2ST_L = TST_LCE_D(S, N1, N_per, alpha, discriminator, device, dtype)
+    h_C2ST_S, threshold_C2ST_S, s_C2ST_S = TST_C2ST_D(
+        S, N1, N_per, alpha, discriminator, device, dtype)
+    h_C2ST_L, threshold_C2ST_L, s_C2ST_L = TST_LCE_D(
+        S, N1, N_per, alpha, discriminator, device, dtype)
 
     # Train MMD-O
 
@@ -295,17 +329,22 @@ for kk in range(K):
 
     h_adaptive, threshold_adaptive, mmd_value_adaptive = TST_MMD_adaptive_bandwidth(Sv, N_per, N1, Sv, sigma, sigma0, alpha,
                                                                                     device, dtype)
-    print("h:", h_adaptive, "Threshold:", threshold_adaptive, "MMD_value:", mmd_value_adaptive)
+    print("h:", h_adaptive, "Threshold:", threshold_adaptive,
+          "MMD_value:", mmd_value_adaptive)
 
     # Train ME
     np.random.seed(seed=1102)
-    test_locs_ME, gwidth_ME = TST_ME(Sv, N1, alpha, is_train=True, test_locs=1, gwidth=1, J=5, seed=15)
-    h_ME = TST_ME(Sv, N1, alpha, is_train=False, test_locs=test_locs_ME, gwidth=gwidth_ME, J=5, seed=15)
+    test_locs_ME, gwidth_ME = TST_ME(
+        Sv, N1, alpha, is_train=True, test_locs=1, gwidth=1, J=5, seed=15)
+    h_ME = TST_ME(Sv, N1, alpha, is_train=False,
+                  test_locs=test_locs_ME, gwidth=gwidth_ME, J=5, seed=15)
 
     # Train SCF
     np.random.seed(seed=1102)
-    test_freqs_SCF, gwidth_SCF = TST_SCF(Sv, N1, alpha, is_train=True, test_freqs=1, gwidth=1, J=5, seed=15)
-    h_SCF = TST_SCF(Sv, N1, alpha, is_train=False, test_freqs=test_freqs_SCF, gwidth=gwidth_SCF, J=5, seed=15)
+    test_freqs_SCF, gwidth_SCF = TST_SCF(
+        Sv, N1, alpha, is_train=True, test_freqs=1, gwidth=1, J=5, seed=15)
+    h_SCF = TST_SCF(Sv, N1, alpha, is_train=False,
+                    test_freqs=test_freqs_SCF, gwidth=gwidth_SCF, J=5, seed=15)
 
     # Record best epsilon, sigma and sigma_0
     ep_OPT[kk] = ep.item()
@@ -343,27 +382,34 @@ for kk in range(K):
         np.random.seed(seed=1102 * (k + 1) + N1)
         data_all_te = data_all[Ind_te]
         N_te = len(data_trans)-N1
-        Ind_N_te = np.random.choice(len(Ind_te), N_te, replace=False)#9900
+        Ind_N_te = np.random.choice(len(Ind_te), N_te, replace=False)  # 9900
         s1 = data_all_te[Ind_N_te]
         s2 = data_trans[Ind_te_v4]
         S = torch.cat([s1.cpu(), s2.cpu()], 0).cuda()
-        Sv = S.view(2 * N_te, -1)   
+        Sv = S.view(2 * N_te, -1)
 
         print(sigma0_u)
         # MMD-D
-        h_u, threshold_u, mmd_value_u = TST_MMD_u(featurizer(S), N_per, N_te, Sv, sigma, sigma0_u, ep, alpha, device, dtype)
+        h_u, threshold_u, mmd_value_u = TST_MMD_u(featurizer(
+            S), N_per, N_te, Sv, sigma, sigma0_u, ep, alpha, device, dtype)
         # MMD-O
-        h_adaptive, threshold_adaptive, mmd_value_adaptive = TST_MMD_adaptive_bandwidth(Sv, N_per, N_te, Sv, sigma, sigma0, alpha, device, dtype)
+        h_adaptive, threshold_adaptive, mmd_value_adaptive = TST_MMD_adaptive_bandwidth(
+            Sv, N_per, N_te, Sv, sigma, sigma0, alpha, device, dtype)
         # MMD-G
-        h_G, threshold_G, mmd_value_G = TST_MMD_adaptive_bandwidth(Sv, N_per, N_te, Sv, sigma, sigmaG, alpha, device, dtype)
+        h_G, threshold_G, mmd_value_G = TST_MMD_adaptive_bandwidth(
+            Sv, N_per, N_te, Sv, sigma, sigmaG, alpha, device, dtype)
         # ME
-        h_ME = TST_ME(Sv, N_te, alpha, is_train=False, test_locs=test_locs_ME, gwidth=gwidth_ME, J=10, seed=15)
+        h_ME = TST_ME(Sv, N_te, alpha, is_train=False,
+                      test_locs=test_locs_ME, gwidth=gwidth_ME, J=10, seed=15)
         # SCF
-        h_SCF = TST_SCF(Sv, N_te, alpha, is_train=False, test_freqs=test_freqs_SCF, gwidth=gwidth_SCF, J=10, seed=15)
+        h_SCF = TST_SCF(Sv, N_te, alpha, is_train=False,
+                        test_freqs=test_freqs_SCF, gwidth=gwidth_SCF, J=10, seed=15)
         # C2ST-S
-        H_C2ST_S[k], Tu_C2ST_S[k], S_C2ST_S[k] = TST_C2ST_D(S, N1, N_per, alpha, discriminator, device, dtype)
+        H_C2ST_S[k], Tu_C2ST_S[k], S_C2ST_S[k] = TST_C2ST_D(
+            S, N1, N_per, alpha, discriminator, device, dtype)
         # C2ST-L
-        H_C2ST_L[k], Tu_C2ST_L[k], S_C2ST_L[k] = TST_LCE_D(S, N1, N_per, alpha, discriminator, device, dtype)
+        H_C2ST_L[k], Tu_C2ST_L[k], S_C2ST_L[k] = TST_LCE_D(
+            S, N1, N_per, alpha, discriminator, device, dtype)
 
         # Gather results
         count_u = count_u + h_u
@@ -404,6 +450,9 @@ for kk in range(K):
     print(Results)
     print("Average Test Power of Baselines (K times): ")
     print("MMD-D: ", (Results.sum(1) / (kk + 1))[0], "C2ST-L: ", (Results.sum(1) / (kk + 1))[1],
-          "C2ST-S: ", (Results.sum(1) / (kk + 1))[2], "MMD-O: ", (Results.sum(1) / (kk + 1))[3],
-          "ME:", (Results.sum(1) / (kk + 1))[4], "SCF: ", (Results.sum(1) / (kk + 1))[5],"MMD-G: ", (Results.sum(1) / (kk + 1))[6])
-np.save('./Results_CIFAR10_' + str(N1) + 'Baselines', Results)
+          "C2ST-S: ", (Results.sum(1) / (kk + 1)
+                       )[2], "MMD-O: ", (Results.sum(1) / (kk + 1))[3],
+          "ME:", (Results.sum(1) / (kk + 1))[4], "SCF: ", (Results.sum(1) / (kk + 1))[5], "MMD-G: ", (Results.sum(1) / (kk + 1))[6])
+
+path_save = path_work_root.joinpath('Results_CIFAR10_' + str(N1) + 'Baselines')
+np.save(path_save, Results)
