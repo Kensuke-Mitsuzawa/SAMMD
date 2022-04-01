@@ -9,26 +9,43 @@ from models import *
 import numpy as np
 import attack_generator as attack
 import os
+from pathlib import Path
 
-parser = argparse.ArgumentParser(description='PyTorch White-box Adversarial Attack Test')
-parser.add_argument('--net', type=str, default="resnet18", help="decide which network to use,choose from resnet18, resnet34")
-parser.add_argument('--dataset', type=str, default="cifar10", help="choose from cifar10,svhn")
-parser.add_argument('--drop_rate', type=float,default=0.0, help='WRN drop rate')
-parser.add_argument('--attack_method', type=str,default="dat", help = "choose form: dat and trades")
-parser.add_argument('--model_path', default='./Res18_model/net_150.pth', help='model for white-box attack evaluation')
-parser.add_argument('--method',type=str,default='dat',help='select attack setting following DAT or TRADES')
+path_work_root = Path(
+    '/content/drive/MyDrive/developments/colab_storage/phd/exps/SAMMD')
+path_model_default = path_work_root.joinpath('Res18_model/net_150.pth')
+
+
+parser = argparse.ArgumentParser(
+    description='PyTorch White-box Adversarial Attack Test')
+parser.add_argument('--net', type=str, default="resnet18",
+                    help="decide which network to use,choose from resnet18, resnet34")
+parser.add_argument('--dataset', type=str, default="cifar10",
+                    help="choose from cifar10,svhn")
+parser.add_argument('--drop_rate', type=float,
+                    default=0.0, help='WRN drop rate')
+parser.add_argument('--attack_method', type=str,
+                    default="dat", help="choose form: dat and trades")
+parser.add_argument('--model_path', default=path_model_default,
+                    help='model for white-box attack evaluation')
+parser.add_argument('--method', type=str, default='dat',
+                    help='select attack setting following DAT or TRADES')
 
 args = parser.parse_args()
 
-transform_test = transforms.Compose([transforms.ToTensor(),])
+transform_test = transforms.Compose([transforms.ToTensor(), ])
 
 print('==> Load Test Data')
 if args.dataset == "cifar10":
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False, num_workers=0)
+    testset = torchvision.datasets.CIFAR10(root=path_work_root.joinpath(
+        'data'), train=False, download=True, transform=transform_test)
+    test_loader = torch.utils.data.DataLoader(
+        testset, batch_size=128, shuffle=False, num_workers=0)
 if args.dataset == "svhn":
-    testset = torchvision.datasets.SVHN(root='./data', split='test', download=True, transform=transform_test)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False, num_workers=0)
+    testset = torchvision.datasets.SVHN(root=path_work_root.joinpath(
+        'data'), split='test', download=True, transform=transform_test)
+    test_loader = torch.utils.data.DataLoader(
+        testset, batch_size=128, shuffle=False, num_workers=0)
 
 print('==> Load Model')
 if args.net == "resnet18":
@@ -48,8 +65,9 @@ model.eval()
 print('==> Generate adversarial sample')
 
 
-PATH_DATA='./Adv_data/cifar10/RN18'
+PATH_DATA = path_work_root.joinpath('Adv_data/cifar10/RN18')
 
 
-X_adv=attack.adv_generate(model, test_loader, perturb_steps=20, epsilon=8./255, step_size=8./255 / 10,loss_fn="cent", category="Madry", rand_init=True)
+X_adv = attack.adv_generate(model, test_loader, perturb_steps=20, epsilon=8. /
+                            255, step_size=8./255 / 10, loss_fn="cent", category="Madry", rand_init=True)
 np.save(os.path.join(PATH_DATA, 'Adv_cifar_PGD20_eps8.npy'), X_adv)
