@@ -11,9 +11,12 @@ import attack_generator as attack
 import os
 from pathlib import Path
 
+from train_model import ResidualBlock, ResNet
+
+
 path_work_root = Path(
     '/content/drive/MyDrive/developments/colab_storage/phd/exps/SAMMD')
-path_model_default = path_work_root.joinpath('Res18_model/net_150.pth')
+path_model_default = path_work_root.joinpath('Res18_model/net_138.pth')
 
 
 parser = argparse.ArgumentParser(
@@ -33,6 +36,17 @@ parser.add_argument('--method', type=str, default='dat',
 
 args = parser.parse_args()
 
+
+# -------- procedure ----------------
+
+def ResNet18():
+    return ResNet(ResidualBlock, [2, 2, 2, 2])
+
+
+def ResNet34():
+    return ResNet(ResidualBlock, [3, 4, 6, 3])
+
+
 transform_test = transforms.Compose([transforms.ToTensor(), ])
 
 print('==> Load Test Data')
@@ -49,15 +63,21 @@ if args.dataset == "svhn":
 
 print('==> Load Model')
 if args.net == "resnet18":
-    model = ResNet18().cuda()
+    # model = ResNet18().cuda()
+    model = ResNet18()
     net = "resnet18"
 if args.net == "resnet34":
-    model = ResNet34().cuda()
+    # model = ResNet34().cuda()
+    model = ResNet34()
     net = "resnet34"
+# end if
 
 
 ckpt = torch.load(args.model_path)
 model.load_state_dict(ckpt)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
+
 
 print(net)
 
