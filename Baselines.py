@@ -155,7 +155,7 @@ Ind_all = np.arange(len(data_all))
 
 # download adversarial data
 path_adv_data = path_work_root.joinpath(
-    'adv/Adv_data/cifar10/Adv_cifar_PGD20_eps8.npy')
+    'Adv_data/cifar10/RN18/Adv_cifar_PGD20_eps8.npy')
 path_adv_data.parent.mkdir(parents=True, exist_ok=True)
 
 data_trans = np.load(path_adv_data)
