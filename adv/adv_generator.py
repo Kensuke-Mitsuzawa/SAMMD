@@ -86,6 +86,7 @@ print('==> Generate adversarial sample')
 
 
 PATH_DATA = path_work_root.joinpath('Adv_data/cifar10/RN18')
+PATH_DATA.mkdir(parents=True, exist_ok=True)
 
 
 X_adv = attack.adv_generate(model, test_loader, perturb_steps=20, epsilon=8. /
